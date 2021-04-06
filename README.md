@@ -42,6 +42,8 @@ while on C++ we use the following (assuming you are using codegen)
 
 UnityEngine::GameObject* go = UnityEngine::GameObject::Find(il2cpp_utils::createcsstr("name"));
 ```
+
+## Custom types and classes
 In the PC mods, you will know that it's quite easy to create your own MonoBehaviours. However, on Quest we cannot just use C++ classes to extend C# classes or create Unity components. Instead, we rely on the useful library called [custom-types by sc2ad](https://github.com/sc2ad/Il2CppQuestTypePatching). This library allows us (albeit still more work than our PC counterpart) to create C# classes. Take the following for example, which is a simple MonoBehaviour: 
 ```hpp
 // OurClass.hpp
@@ -57,7 +59,7 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
     DECLARE_METHOD(void, Update);
     DECLARE_CTOR(ctor);
 
-
+    DECLARE_INSTANCE_FIELD_DEFAULT(float, floatVar, 0.1f); // default value 
 
     REGISTER_FUNCTION(OurClass,
       getLogger().debug("Registering OurClass!"); // May need to be removed
@@ -92,6 +94,13 @@ go->AddComponent<OurNamespace::OurClass*>(); // The * is necessary
 ```
 And now our component is in the game.
 
+** Remember to register your custom type, which should be done in the load method as follows: **
+```cpp
+load() {
+    custom_types::Register::RegisterTypes<OurNamespace::OurClass*>();
+}
+```
+
 ## Diagnosing crashes
 On Quest you'll notice that it's far less forgiving for mistakes. Your mod will crash even for the slightest error, and sometimes you might even spend hours scratching your head, wondering why your code isn't working when it works in the original mod.
 
@@ -118,6 +127,15 @@ if (ptr) {
   // NO IT'S NULLPTR!!!!
 }
 ```
+
+### Nullptr dereference (but this code shouldn't be null, what gives?)
+One problem we have in Quest modding is that while il2cpp may be compiled to C++, it does bring a garbage collector. This garbage collector is very agressive due to the limitations of the Quest devices. As modders, this causes a problem in which if we try to store references to pointers, there is no guarantee the GC (garbage collector) won't delete the memory later while we use it. So what's our solution to this problem? 
+
+#### Custom-types 
+One of the answers lies again in custom-types. Even if you don't plan on extending a C# class, you can use custom-types to store pointers to C# classes. The GC will recognize the fields and won't delete them from memory as long as the instance is still alive.
+
+#### SafePtr
+TODO: Wait for sc2ad to fix SafePtr
 
 ### SEGV_MAPERR (similar to ClassCastException) 
 This usually means that you are assuming your variable is of type `B*` but in reality it is `A*`. Since you are assuming it's `B*`, the memory or functions you are trying to access do not exist therefore you get a MAP ERROR (memory isn't mapped as you'd expect) The best way to check your classes before assuming/casting them is to do a simple if check as follows:
