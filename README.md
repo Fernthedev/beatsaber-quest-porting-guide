@@ -14,7 +14,7 @@ Simply, the Quest (and even Quest 2) are not very powerful compared to their PC 
 ```cpp
 static const MethodInfo* method = CRASH_UNLESS(il2cpp_utils::FindMethodUnsafe("UnityEngine", "GameObject", "Find", 1));
 // nullptr since it's a static method, otherwise you provide the instance
-Il2cppObject* object = il2cpp_utils::RunMethod(nullptr, method, "someObject")
+Il2cppObject* object = il2cpp_utils::RunMethod(nullptr, method, il2cpp_utils::createcssstr("someObject"))
 ```
 
 As you can see, this is problematic in many ways. For one, this has no type-safety therefore a compile doesn't guarantee a run. Second, this assumes that your code is even correct and can break easily between updates without notice. The code you may need to change may be even hard to test which may cause a crash you don't realize until it's too late. 
@@ -38,7 +38,8 @@ GameObject go = UnityEngine.GameObject.Find("name");
 ```
 while on C++ we use the following (assuming you are using codegen)
 ```cpp
-#include <UnityEngine/GameObject.hpp>
+#pragma once
+#include "UnityEngine/GameObject.hpp"
 
 UnityEngine::GameObject* go = UnityEngine::GameObject::Find(il2cpp_utils::createcsstr("name"));
 ```
@@ -84,6 +85,13 @@ void OurNamespace::OurClass::Update() {
   // Update method! YAY
 }
 ```
+** Remember to register your custom type, which should be done in the load method as follows: **
+```cpp
+load() {
+    custom_types::Register::RegisterTypes<OurNamespace::OurClass*>();
+}
+```
+
 Voila, we're done. 
 
 What about adding MonoBehaviours now? Well, it's simple too. 
@@ -94,12 +102,8 @@ go->AddComponent<OurNamespace::OurClass*>(); // The * is necessary
 ```
 And now our component is in the game.
 
-** Remember to register your custom type, which should be done in the load method as follows: **
-```cpp
-load() {
-    custom_types::Register::RegisterTypes<OurNamespace::OurClass*>();
-}
-```
+## Harmony Patch to BS-Hooks
+TODO: Get examples and write actual code
 
 ## Diagnosing crashes
 On Quest you'll notice that it's far less forgiving for mistakes. Your mod will crash even for the slightest error, and sometimes you might even spend hours scratching your head, wondering why your code isn't working when it works in the original mod.
@@ -128,7 +132,7 @@ if (ptr) {
 }
 ```
 
-### Nullptr dereference (but this code shouldn't be null, what gives?)
+### Nullptr dereference/SEGV_MAPERR (but this code shouldn't be null, what gives?)
 One problem we have in Quest modding is that while il2cpp may be compiled to C++, it does bring a garbage collector. This garbage collector is very agressive due to the limitations of the Quest devices. As modders, this causes a problem in which if we try to store references to pointers, there is no guarantee the GC (garbage collector) won't delete the memory later while we use it. So what's our solution to this problem? 
 
 #### Custom-types 
@@ -137,7 +141,7 @@ One of the answers lies again in custom-types. Even if you don't plan on extendi
 #### SafePtr
 TODO: Wait for sc2ad to fix SafePtr
 
-### SEGV_MAPERR (similar to ClassCastException) 
+### SEGV_MAPERR (similar to ClassCastException or NullPtr) 
 This usually means that you are assuming your variable is of type `B*` but in reality it is `A*`. Since you are assuming it's `B*`, the memory or functions you are trying to access do not exist therefore you get a MAP ERROR (memory isn't mapped as you'd expect) The best way to check your classes before assuming/casting them is to do a simple if check as follows:
 ```cpp
 // left is the class
@@ -147,17 +151,23 @@ if (il2cpp_functions::class_is_assignable_from(objectA->klass, classof(B*))) {
 }
 ```
 
+However, it should be noted that if the GC yeets the memory in the pointer, it will usually throw a [SEGV_MAPERR and it cannot be at runtime checked (yet)](nullptr-dereference-segv_mapperr-but-this-code-shouldnt-be-null-what-gives). Instead of checking to see if it's been yeeted, you should instead try to avoid it altogether by making a custom-type or SafePtr for it.
+
 ### SIGABRT (intentional crash)
-There are two main ways this crash occur (though there are others, these are the ones I'll focus on here)
-- An exception was thrown in the C# code (either called by your mod or another mod)
-- A CRASH_UNLESS() was called and failed
+There are two main ways this crash occur (though there are many others, these are the ones I'll focus on here)
+- An exception was thrown in the C# code (either called by your mod or another mod) and wasn't caught
+  - Usually contains a `cxa_throw` in the callstack (though it varies)  
+  - Can be caught using `Il2CppExceptionWrapper&` in C++ code; though you should most of the time attempt to fix what causses it, not avoid it.
+- A C++ exception was thrown and wasn't caught
+  - Usually contains a `std::terminate` in the callstack (though it varies)
+  - Most of the time (though not limited to) done intentionally by `CRASH_UNLESS/SAFE_ABORT`
 
 This crash is unique in that a tombstone alone won't help you (it will show you the location, but not the reason)
 
 When the crash occurs, a crash message will be printed before it explaining why it crashed (maybe a C# exception for example). This message is not captured by the tombstone (and it's a system service so we can't do it ourselves). You will have to manually log using `adb logcat` and reproduce the bug to get the message.
 
 You cannot fix it easily either. You either fix your CRASH_UNLESS condition or fix your C# method call, depending what is the cause.
-You _can_ try to catch the exception, though this is undefined behaviour and we don't support it _yet_
+You _can_ try to catch the exception, though this is undefined behaviour and we don't support it _yet_ in the community.
 
 ## Optimizations
 There's many ways we can optimize our mod to be as fast, or even _faster_ than the PC counterpart.
@@ -182,4 +192,4 @@ void func() {
   static auto someExpensiveVar = someExpensiveMethod();
 }
 ```
-What does this do? It initializes the variable the first time the method runs, and keeps it for every other run. This makes the method constant however it is very helpful for improving performance.
+What does this do? It initializes the variable the first time the method runs, and keeps it for every other run. This makes the variable constant however it is very helpful for improving performance. Avoid using it unless you are certain the lifetime of the object lasts as long or longer than you need.
