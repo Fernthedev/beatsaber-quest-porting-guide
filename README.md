@@ -93,11 +93,11 @@ void OurNamespace::OurClass::Update() {
 }
 ```
 This MonoBehaviour has a constructor, a method called "Update" and an instance field called `floatVar`.
-It should be known that you cannot use non-il2cpp types in methods or fields, such as C++ structs or classes. You can use pointers though.
+It should be known that you cannot use non-il2cpp types in custom-types methods or fields (DECLARE_ methods or fields), such as C++ structs or classes. You can use pointers, other custom-types and convertible value types though.
 
 You should also know that you can use C++ methods and fields like any normal C++ class, but no constructors.
 
-You also cannot directly call the `ctor` method, and instead use `il2cpp_utils::New<OurNamespacce::OurClass*>(parametersHere);`
+You also cannot directly call the `ctor` method, and instead use `il2cpp_utils::New<OurNamespacce::OurClass*>(parametersHere);` (you technically can call ctor, but that won't actually construct the instance)
 
 **Remember to register your custom type, which should be done in the load method as follows:**
 ```cpp
@@ -207,7 +207,7 @@ One of the answers lies again in custom-types. Even if you don't plan on extendi
 TODO: Wait for sc2ad to fix SafePtr
 
 ### SEGV_MAPERR (similar to ClassCastException or NullPtr) 
-This usually means that you are assuming your variable is of type `B*` but in reality it is `A*`. Since you are assuming it's `B*`, the memory or functions you are trying to access do not exist therefore you get a MAP ERROR (memory isn't mapped as you'd expect).
+This usually means that you are assuming your variable is of type `B*` but in reality it is `A*`. Since you are assuming it's `B*`, the memory or functions you are trying to access does not exist therefore you get a MAP ERROR (memory isn't mapped as you'd expect).
 
 SEGV_MAPERR strictly speaking is a crash that occurs due to a pointer dereference to an unmapped region of memory. [You can read the Android crash docs for more details.](https://source.android.com/devices/tech/debug/native-crash#lowaddress)
 
@@ -241,7 +241,7 @@ You cannot fix it easily either. You either fix your CRASH_UNLESS condition or f
 You _can_ try to catch the exception, though this is undefined behaviour and we don't support it _yet_ in the community.
 
 ### ACCERR
-While this crash is a rare error, it can occur by attempting to access memory which is not allowed. The GC is a probable cause, though it can also be bad casting. 
+While this crash is a rare error, it can occur by attempting to access memory which is not allowed. The GC is a probable cause, though it can also be bad casting. For example, it can be caused by accesing memory in the kernel spacce or `.rodata` section, which is usually prohibited.
 
 *This is rather vague since I'm not very familiar with the crash myself*
 
@@ -249,7 +249,7 @@ While this crash is a rare error, it can occur by attempting to access memory wh
 There's many ways we can optimize our mod to be as fast, or even _faster_ than the PC counterpart.
 
 ### Recreate/Replace functions
-If the function is simple, such as a math method, you are _**encouraged**_ to use a C++ implementation of it. Either by the `std` library or rewriting it yourself. While the code is functionally similar, you avoid the overhead il2cpp incurs and these minor changes make a big difference in the long run
+If the function is simple, such as a math method, you are _**encouraged**_ to use a C++ implementation of it. Either by the `std` library or rewriting it yourself. While the code is functionally similar, you avoid the overhead il2cpp incurs and these minor changes make a big difference in the long run.
 
 ### Use C++ alternative types
 This is similar to the previous method, except instead of methods we use C++ native types or structs. 
