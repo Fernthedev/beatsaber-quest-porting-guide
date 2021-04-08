@@ -7,6 +7,12 @@ This guide aims to do the following things:
 This assumes that you have a basic understanding of C++ and a bit of C#. You will also be using codegen in this tutorial.
 This guide will explain different practices in no particular order
 
+## PRs are welcome!
+You can make PRs to this repo, though your new documentation should have the following requirements:
+- [x] Properly describe the practice and it's use cases. Specify when to/not to use said practice
+- [x] The reader should be aware of the consequences/advantages of said method
+- [x] Show examples from C# identical/similar code if applicable
+
 ## Objects and Codegen
 To understand why we use codegen, we have to understand how il2cpp works behind the scenes. BeatSaber uses the Unity engine which has 2 different ways of compiling: Mono and il2cpp. The PC version is compiled in Mono which allows mods to be created in C#, while also having a garbage collector and JIT optimizations. However, the Quest version uses il2cpp. Why you may ask? 
 
@@ -66,6 +72,7 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
       getLogger().debug("Registering OurClass!"); // May need to be removed
       REGISTER_METHOD(ctor);
       REGISTER_METHOD(Update);
+      REGISTER_FIELD(floatVar);
     )
 )
 ```
@@ -77,7 +84,7 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
 DEFINE_CLASS(OurNamespace::OurClass);
 
 void OurNamespace::OurClass::ctor() {
-
+  // Constructor!
 }
 
 
@@ -85,7 +92,14 @@ void OurNamespace::OurClass::Update() {
   // Update method! YAY
 }
 ```
-** Remember to register your custom type, which should be done in the load method as follows: **
+This MonoBehaviour has a constructor, a method called "Update" and an instance field called `floatVar`.
+It should be known that you cannot use non-il2cpp types in methods or fields, such as C++ structs or classes. You can use pointers though.
+
+You should also know that you can use C++ methods and fields like any normal C++ class, but no constructors.
+
+You also cannot directly call the `ctor` method, and instead use `il2cpp_utils::New<OurNamespacce::OurClass*>(parametersHere);`
+
+**Remember to register your custom type, which should be done in the load method as follows:**
 ```cpp
 load() {
     custom_types::Register::RegisterTypes<OurNamespace::OurClass*>();
@@ -164,7 +178,12 @@ and then you'll have `path/to/tombstone_unstripped.txt`. The new log _should_ re
 You will also notice that they contain something along the lines of `signal (Code) (ERROR_NAME)` or nullptr dereference as example:
 `signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0x7753b8faf0`
 
+You can read the [Android NDK docs](https://source.android.com/devices/tech/debug/native-crash) for more detailed information about crashes and their meaning:
+
 Here are some common codes and their meanings (though they often depend)
+
+**Do note, that you should be skeptical with these explanations. Some crashes can be caused for other reasons such as ACCERR caused by nullptr for example**
+
 ### Nullptr dereference (the equivalent of NullPointerException on C#) 
 It means that you tried to use a ptr which is equal to nullptr
 
@@ -188,7 +207,13 @@ One of the answers lies again in custom-types. Even if you don't plan on extendi
 TODO: Wait for sc2ad to fix SafePtr
 
 ### SEGV_MAPERR (similar to ClassCastException or NullPtr) 
-This usually means that you are assuming your variable is of type `B*` but in reality it is `A*`. Since you are assuming it's `B*`, the memory or functions you are trying to access do not exist therefore you get a MAP ERROR (memory isn't mapped as you'd expect) The best way to check your classes before assuming/casting them is to do a simple if check as follows:
+This usually means that you are assuming your variable is of type `B*` but in reality it is `A*`. Since you are assuming it's `B*`, the memory or functions you are trying to access do not exist therefore you get a MAP ERROR (memory isn't mapped as you'd expect).
+
+SEGV_MAPERR strictly speaking is a crash that occurs due to a pointer dereference to an unmapped region of memory. [You can read the Android crash docs for more details.](https://source.android.com/devices/tech/debug/native-crash#lowaddress)
+
+Another reason why this crash may occur is due to the [GC which is explained more thoroughly here](#nullptr-dereferencesegv_maperr-but-this-code-shouldnt-be-null-what-gives).
+
+The best way to check your classes before assuming/casting them is to do a simple if check as follows:
 ```cpp
 // left is the class
 // right is the parent class
@@ -197,7 +222,7 @@ if (il2cpp_functions::class_is_assignable_from(objectA->klass, classof(B*))) {
 }
 ```
 
-However, it should be noted that if the GC yeets the memory in the pointer, it will usually throw a [SEGV_MAPERR and it cannot be at runtime checked (yet)](nullptr-dereference-segv_mapperr-but-this-code-shouldnt-be-null-what-gives). Instead of checking to see if it's been yeeted, you should instead try to avoid it altogether by making a custom-type or SafePtr for it.
+However, it should be noted that if the GC yeets the memory in the pointer, it will usually throw a [SEGV_MAPERR and it cannot be at checked at runtime (yet)](nullptr-dereference-segv_mapperr-but-this-code-shouldnt-be-null-what-gives). Instead of checking to see if it's been yeeted, you should instead try to avoid it altogether by making a custom-type or SafePtr for it.
 
 ### SIGABRT (intentional crash)
 There are two main ways this crash occur (though there are many others, these are the ones I'll focus on here)
@@ -215,6 +240,11 @@ When the crash occurs, a crash message will be printed before it explaining why 
 You cannot fix it easily either. You either fix your CRASH_UNLESS condition or fix your C# method call, depending what is the cause.
 You _can_ try to catch the exception, though this is undefined behaviour and we don't support it _yet_ in the community.
 
+### ACCERR
+While this crash is a rare error, it can occur by attempting to access memory which is not allowed. The GC is a probable cause, though it can also be bad casting. 
+
+*This is rather vague since I'm not very familiar with the crash myself*
+
 ## Optimizations
 There's many ways we can optimize our mod to be as fast, or even _faster_ than the PC counterpart.
 
@@ -223,7 +253,7 @@ If the function is simple, such as a math method, you are _**encouraged**_ to us
 
 ### Use C++ alternative types
 This is similar to the previous method, except instead of methods we use C++ native types or structs. 
-#### List
+#### List/Arrays
 We may use `std::vector` instead of a C# array list or array. 
 #### Hash Maps
 We can use a `std::unordered_map` for hash maps (though they are not insertion order)
