@@ -105,6 +105,48 @@ And now our component is in the game.
 ## Harmony Patch to BS-Hooks
 TODO: Get examples and write actual code
 
+## Coroutines
+In games, we might need to run code on the main thread later or at a specific interval. Usually, we keep track using state management such as counters or switches, though this can sometimes be hard to safely implement or just plain annoying. Unity attempts to alleviate the issue by using coroutines, which are "fake threads" as some call them. Your code will run in an Update method and every `yield return` will pause the method until the next Update. Your coroutine will end at the function's end or `yield break;`. 
+For more information about coroutines, take a look at the [Unity Coroutine docs](https://docs.unity3d.com/Manual/Coroutines.html)
+
+However, as you may already know, not everything is as easy in C++ like C#. Luckily, this is one of those moments where C++ is on-par with syntax sugar and performance. Let's take a look at the following coroutine in C#:
+
+```csharp
+IENumerator coroutine() {
+  for (int i = 0; i < 30; i++) {
+    // Timer
+    secondsPassed++;
+    doSomethingEverySecond();
+    yield return new WaitForSeconds(1);
+  }
+}
+```
+Then you'd call it as `MonoBehaviour.StartCoroutine(coroutine());`
+This is a simple way to track time without having to measure it in every Update call yourself. We can also do this in C++, thanks to the wonderful work of `custom-types` with similar but different syntax.
+```cpp
+#include "System/Collections/IEnumerator.hpp"
+#include "custom-types/shared/coroutine.hpp"
+#include "UnityEngine/WaitForSeconds.hpp"
+
+custom_types::Helpers::Coroutine coroutine() {
+
+    for (int i = 0; i < 30; i++) {
+      // Timer
+      secondsPassed++;
+      doSomethingEverySecond();
+      co_yield reinterpret_cast<System::Collections::IEnumerator*>(CRASH_UNLESS(WaitForSeconds::New_ctor(1)));
+    }
+
+    co_return;
+}
+```
+and you'd run `MonoBehaviour->StartCoroutine(reinterpret_cast<System::Collections::IEnumerator*>(coroutine()));`
+
+Congrats, you've just made a coroutine in C++!
+
+**Do note that the general rule of coroutines still apply here. You should avoid heavy work such as I/O or web requests on the main thread and instead use il2cpp threads (if you need to run il2cpp/Unity code in the thread) or use C++ threads for better performance. Coroutines are still on the main thread.**
+
+
 ## Diagnosing crashes
 On Quest you'll notice that it's far less forgiving for mistakes. Your mod will crash even for the slightest error, and sometimes you might even spend hours scratching your head, wondering why your code isn't working when it works in the original mod.
 
