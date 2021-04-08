@@ -112,7 +112,7 @@ For more information about coroutines, take a look at the [Unity Coroutine docs]
 However, as you may already know, not everything is as easy in C++ like C#. Luckily, this is one of those moments where C++ is on-par with syntax sugar and performance. Let's take a look at the following coroutine in C#:
 
 ```csharp
-IENumerator coroutine() {
+IEnumerator coroutine() {
   for (int i = 0; i < 30; i++) {
     // Timer
     secondsPassed++;
@@ -121,8 +121,8 @@ IENumerator coroutine() {
   }
 }
 ```
-Then you'd call it as `MonoBehaviour.StartCoroutine(coroutine());`
-This is a simple way to track time without having to measure it in every Update call yourself. We can also do this in C++, thanks to the wonderful work of `custom-types` with similar but different syntax.
+Then you'd call it as `monoBehaviour.StartCoroutine(coroutine());`
+This is a simple way to track time without having to measure it in every Update call yourself. We can also do this in C++, thanks to the wonderful work of `custom-types` with similar but different syntax. The following is a direct port of the C# coroutine from above, notice how it is very similar:
 ```cpp
 #include "System/Collections/IEnumerator.hpp"
 #include "custom-types/shared/coroutine.hpp"
@@ -140,9 +140,13 @@ custom_types::Helpers::Coroutine coroutine() {
     co_return;
 }
 ```
-and you'd run `MonoBehaviour->StartCoroutine(reinterpret_cast<System::Collections::IEnumerator*>(coroutine()));`
+and you'd run `monoBehaviour->StartCoroutine(reinterpret_cast<System::Collections::IEnumerator*>(coroutine()));` akin to the C# code above
 
 Congrats, you've just made a coroutine in C++!
+
+What exactly are `co_return` and `co_yield` in C++ though? Well `co_return` in C++ is the direct port of `yield break;` for C#. `co_yield`, as it's name suggests, is a direct port to `yield return` for C#. You cannot use `return` in coroutines (which is a C++ 20 reason I don't want to delve into here)
+
+*Do note that if your coroutine does NOT contain a `co_yield` or `co_return`, you WILL have LOTS of strange behaviour (believe me, I know it myself all too well). But you shouldn't use a coroutine if your method doesn't contain a `co_yield` or `co_return` to begin with, unless you're trying to run code in the Update method once (which would be weird).*
 
 **Do note that the general rule of coroutines still apply here. You should avoid heavy work such as I/O or web requests on the main thread and instead use il2cpp threads (if you need to run il2cpp/Unity code in the thread) or use C++ threads for better performance. Coroutines are still on the main thread.**
 
