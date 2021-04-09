@@ -65,12 +65,15 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
   public:
     DECLARE_METHOD(void, Update);
     DECLARE_CTOR(ctor);
+    DECLARE_SIMPLE_DTOR(OurClass); // class name
 
-    DECLARE_INSTANCE_FIELD_DEFAULT(float, floatVar, 0.1f); // default value 
+    DECLARE_INSTANCE_FIELD(float, floatVar);
 
     REGISTER_FUNCTION(OurClass,
       getLogger().debug("Registering OurClass!"); // May need to be removed
+      REGISTER_SIMPLE_DTOR;
       REGISTER_METHOD(ctor);
+      REGISTER_METHOD(dtor);
       REGISTER_METHOD(Update);
       REGISTER_FIELD(floatVar);
     )
@@ -81,9 +84,10 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
 #include "OurClass.hpp"
 
 // Necessary
-DEFINE_CLASS(OurNamespace::OurClass);
+DEFINE_TYPE(OurNamespace::OurClass);
 
 void OurNamespace::OurClass::ctor() {
+  floatVar = 1.0f
   // Constructor!
 }
 
@@ -92,12 +96,44 @@ void OurNamespace::OurClass::Update() {
   // Update method! YAY
 }
 ```
-This MonoBehaviour has a constructor, a method called "Update" and an instance field called `floatVar`.
+This MonoBehaviour has a constructor, destructor, a method called "Update" and an instance field called `floatVar`.
 It should be known that you cannot use non-il2cpp types in custom-types methods or fields (DECLARE_ methods or fields), such as C++ structs or classes. You can use pointers, other custom-types and convertible value types though.
 
 You should also know that you can use C++ methods and fields like any normal C++ class, but no constructors.
 
-You also cannot directly call the `ctor` method, and instead use `il2cpp_utils::New<OurNamespacce::OurClass*>(parametersHere);` (you technically can call ctor, but that won't actually construct the instance)
+You also should not directly call the `ctor` method, and instead you should use `il2cpp_utils::New<OurNamespacce::OurClass*>(parametersHere);` (you technically can call ctor, but that won't actually construct the instance)
+
+It is also important to know that the C++ destructor is never called when the type is freed by the GC, so if you have for example a `std::vector` or anything that needs deletion (such as std::unordered_map or anything that isn't [trivially constructed](https://en.cppreference.com/w/cpp/language/default_constructor)), it will never get freed and thus causes a memory leak. Thankfully, we can call the destructor ourselves very easily. This is a simple example as a solution to this kind of problem: (kindly provided by sc2ad)
+
+```hpp
+// type.hpp
+#pragma once
+
+DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
+  std::vector<int> aCppVec;
+  DECLARE_CTOR(ctor);
+  DECLARE_SIMPLE_DTOR(Stuff); // class name
+  REGISTER_FUNCTION(Stuff,
+    REGISTER_METHOD(ctor);
+    REGISTER_SIMPLE_DTOR;
+  )
+)
+```
+```cpp
+// type.cpp
+DEFINE_TYPE(Does::Stuff);
+
+void Does::Stuff::ctor() {
+  INVOKE_CTOR(Stuff); // class name, you should only use this is if your constructor is non-trivial or contains non-trivial constructible fields such as vectors. very tiny performance impact
+  // create vector
+  aCppVec = std::vector<int>();
+}
+```
+
+What does `INVOKE_CTOR` and `DECLARE_SIMPLE_DTOR` do behind the scenes? Well, first `INVOKE_CTOR` calls your C++ constructor at the cost of a _**very tiny**_ performance impact to initialize your fields. You do not need this call if you do not have [non-trivial constructible fields](https://en.cppreference.com/w/cpp/language/default_constructor) such as `std::vector`. `DECLARE_SIMPLE_DTOR` on the other hand causes the C++ destructor to be called by the C# destructor, which _in theory_ should have no memory leaks 🤞. Of course, if you have manually allocated data, you'll need your own destructor. 
+
+You should **not** call either C# or C++ destructor outside of the destructor itself (e.g, just calling it anywhere in your code)
+The GC will call it for you when it is no longer needed (do note that this does not apply to manually managed il2cpp created types)
 
 **Remember to register your custom type, which should be done in the load method as follows:**
 ```cpp
@@ -115,6 +151,37 @@ UnityEngine::GameObject* go = getGameObjectSomehow(); // This is a placeholder, 
 go->AddComponent<OurNamespace::OurClass*>(); // The * is necessary
 ```
 And now our component is in the game.
+
+### Custom destructor 
+This is a simple example using a custom destructor: (kindly provided by sc2ad)
+```hpp
+// type.hpp
+#pragma once
+
+DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
+  std::vector<int> aCppVec;
+  DECLARE_CTOR(ctor);
+  DESTRUCTOR(dtor);
+  REGISTER_FUNCTION(Stuff,
+    REGISTER_METHOD(ctor);
+    REGISTER_METHOD(dtor);
+  )
+)
+```
+```cpp
+// type.cpp
+DEFINE_TYPE(Does::Stuff);
+
+void Does::Stuff::ctor() {
+  // create vector
+  aCppVec = std::vector<int>();
+}
+
+void Does::Stuff::dtor() {
+  // explicitly call the destructor, this almost always shouldn't be done outside of the destructor itself
+  aCppVec.~vector();
+}
+```
 
 ## Harmony Patch to BS-Hooks
 TODO: Get examples and write actual code
