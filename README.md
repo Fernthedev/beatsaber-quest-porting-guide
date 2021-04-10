@@ -65,7 +65,7 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
   public:
     DECLARE_METHOD(void, Update);
     DECLARE_CTOR(ctor);
-    DECLARE_SIMPLE_DTOR(); // class name
+    DECLARE_SIMPLE_DTOR();
 
     DECLARE_INSTANCE_FIELD(float, floatVar);
 
@@ -116,7 +116,7 @@ DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
   DECLARE_INSTANCE_FIELD_DEFAULT(float, floatVar, 1.2f); 
   
   DECLARE_CTOR(ctor);
-  DECLARE_SIMPLE_DTOR(); // class name
+  DECLARE_SIMPLE_DTOR();
   REGISTER_FUNCTION(
     REGISTER_METHOD(ctor);
     REGISTER_SIMPLE_DTOR;
@@ -128,7 +128,7 @@ DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
 DEFINE_TYPE(Does::Stuff);
 
 void Does::Stuff::ctor() {
-  // class name, you should only use this is if your constructor is non-trivial or contains non-trivial constructible fields such as vectors. very tiny performance impact
+  // you should only use this is if your constructor is non-trivial or contains non-trivial constructible fields such as vectors. very tiny performance impact
   INVOKE_CTOR(); 
   // create vector
   aCppVec = std::vector<int>();
