@@ -71,7 +71,7 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
 
     REGISTER_FUNCTION(
       getLogger().debug("Registering OurClass!"); // May need to be removed
-      REGISTER_SIMPLE_DTOR;
+      REGISTER_SIMPLE_DTOR();
       REGISTER_METHOD(ctor);
       REGISTER_METHOD(dtor);
       REGISTER_METHOD(Update);
@@ -119,7 +119,7 @@ DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
   DECLARE_SIMPLE_DTOR();
   REGISTER_FUNCTION(
     REGISTER_METHOD(ctor);
-    REGISTER_SIMPLE_DTOR;
+    REGISTER_SIMPLE_DTOR();
   )
 )
 ```
@@ -130,14 +130,14 @@ DEFINE_TYPE(Does::Stuff);
 void Does::Stuff::ctor() {
   // you should only use this is if your constructor is non-trivial or contains non-trivial constructible fields such as vectors. very tiny performance impact
   INVOKE_CTOR(); 
-  // create vector
-  aCppVec = std::vector<int>();
 }
 ```
 
 What does `INVOKE_CTOR` and `DECLARE_SIMPLE_DTOR` do behind the scenes? Well, first `INVOKE_CTOR` calls your C++ constructor at the cost of a _**very tiny**_ performance impact to initialize your fields. You do not need this call if you do not have [non-trivial constructible fields](https://en.cppreference.com/w/cpp/language/default_constructor) such as `std::vector`. `DECLARE_SIMPLE_DTOR` on the other hand causes the C++ destructor to be called by the C# destructor, which _in theory_ should have no memory leaks 🤞. Of course, if you have manually allocated data, you'll need your own destructor. 
 
-Note that because we are defining a new method for construction, we are not calling our c++ constructor. This means that our fields are uninitialized, including all calls to `DECLARE_INSTANCE_FIELD_DEFAULT` and non trivially constructible fields. We can fix this by calling the c++ constructor ourself, IN our c# one, via INVOKE_CTOR.
+> Tip: If you plan on making a C# constructor just to invoke `INVOKE_CTOR`, you can use `DECLARE_DEFAULT_CTOR` and `REGISTER_SIMPLE_CTOR()` the same way you would use `DECLARE_DEFAULT_DTOR` and `REGISTER_DEFAULT_DTOR()` respectively.
+
+Note that because we are defining a new method for construction, we are not calling our c++ constructor. This means that our fields are uninitialized, including all calls to `DECLARE_INSTANCE_FIELD_DEFAULT` and non trivially constructible fields. We can fix this by calling the C++ constructor ourself, IN our C# one (ctor), via INVOKE_CTOR.
 
 You should **not** call either C# or C++ destructor outside of the destructor itself (e.g, just calling it anywhere in your code)
 The GC will call it for you when it is no longer needed (do note that this does not apply to manually managed il2cpp created types)
