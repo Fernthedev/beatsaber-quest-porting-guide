@@ -65,11 +65,11 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
   public:
     DECLARE_METHOD(void, Update);
     DECLARE_CTOR(ctor);
-    DECLARE_SIMPLE_DTOR(OurClass); // class name
+    DECLARE_SIMPLE_DTOR(); // class name
 
     DECLARE_INSTANCE_FIELD(float, floatVar);
 
-    REGISTER_FUNCTION(OurClass,
+    REGISTER_FUNCTION(
       getLogger().debug("Registering OurClass!"); // May need to be removed
       REGISTER_SIMPLE_DTOR;
       REGISTER_METHOD(ctor);
@@ -111,9 +111,13 @@ It is also important to know that the C++ destructor is never called when the ty
 
 DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
   std::vector<int> aCppVec;
+  
+  // This requires either INVOKE_CTOR or placement new to actually initialize the variable with the default value.
+  DECLARE_INSTANCE_FIELD_DEFAULT(float, floatVar, 1.2f); 
+  
   DECLARE_CTOR(ctor);
-  DECLARE_SIMPLE_DTOR(Stuff); // class name
-  REGISTER_FUNCTION(Stuff,
+  DECLARE_SIMPLE_DTOR(); // class name
+  REGISTER_FUNCTION(
     REGISTER_METHOD(ctor);
     REGISTER_SIMPLE_DTOR;
   )
@@ -124,13 +128,16 @@ DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
 DEFINE_TYPE(Does::Stuff);
 
 void Does::Stuff::ctor() {
-  INVOKE_CTOR(Stuff); // class name, you should only use this is if your constructor is non-trivial or contains non-trivial constructible fields such as vectors. very tiny performance impact
+  // class name, you should only use this is if your constructor is non-trivial or contains non-trivial constructible fields such as vectors. very tiny performance impact
+  INVOKE_CTOR(); 
   // create vector
   aCppVec = std::vector<int>();
 }
 ```
 
 What does `INVOKE_CTOR` and `DECLARE_SIMPLE_DTOR` do behind the scenes? Well, first `INVOKE_CTOR` calls your C++ constructor at the cost of a _**very tiny**_ performance impact to initialize your fields. You do not need this call if you do not have [non-trivial constructible fields](https://en.cppreference.com/w/cpp/language/default_constructor) such as `std::vector`. `DECLARE_SIMPLE_DTOR` on the other hand causes the C++ destructor to be called by the C# destructor, which _in theory_ should have no memory leaks 🤞. Of course, if you have manually allocated data, you'll need your own destructor. 
+
+Note that because we are defining a new method for construction, we are not calling our c++ constructor. This means that our fields are uninitialized, including all calls to `DECLARE_INSTANCE_FIELD_DEFAULT` and non trivially constructible fields. We can fix this by calling the c++ constructor ourself, IN our c# one, via INVOKE_CTOR.
 
 You should **not** call either C# or C++ destructor outside of the destructor itself (e.g, just calling it anywhere in your code)
 The GC will call it for you when it is no longer needed (do note that this does not apply to manually managed il2cpp created types)
@@ -161,8 +168,8 @@ This is a simple example using a custom destructor: (kindly provided by sc2ad)
 DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
   std::vector<int> aCppVec;
   DECLARE_CTOR(ctor);
-  DESTRUCTOR(dtor);
-  REGISTER_FUNCTION(Stuff,
+  DECLARE_DESTRUCTOR(dtor);
+  REGISTER_FUNCTION(
     REGISTER_METHOD(ctor);
     REGISTER_METHOD(dtor);
   )
