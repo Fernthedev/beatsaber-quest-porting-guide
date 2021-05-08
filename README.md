@@ -217,7 +217,7 @@ void Does::Stuff::dtor() {
 As you may already know, on Quest we do not have such things as post fix or pre fix like HarmonyPatches. So, how do we follow the same behaviour?
 
 We use `MAKE_HOOK_OFFSETLESS(hookName, returnType, instance, parameters...)` to define the hook and it's code and `INSTALL_HOOK_OFFSETLESS(getLogger(), hookName, il2cpp_utils::FindMethodUnsafe("NameSpaceOfClass or empty if GlobalNamespace", "Class", "Method", parameterCount));` to register the hook.
-You CANNOT uninstall hooks, and beware for methods too small to be hooked. Ocassionally, there are methods in the game you CANNOT hook since they are too small, however you can workaround it by hooking other methods that ARE big enough.
+You should NOT uninstall hooks, and beware for methods too small to be hooked. Ocassionally, there are methods in the game you CANNOT hook since they are too small, however you can workaround it by hooking other methods that ARE big enough.
 
 ## Pre fix
 
