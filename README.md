@@ -342,7 +342,7 @@ custom_types::Helpers::Coroutine coroutine() {
 }
 ```
 
-and you'd run `monoBehaviour->StartCoroutine(reinterpret_cast<System::Collections::IEnumerator*>(coroutine()));` akin to the C# code above
+and you'd run `monoBehaviour->StartCoroutine(reinterpret_cast<System::Collections::IEnumerator*>(CoroutineHelper::New(coroutine())));` akin to the C# code above
 
 Congrats, you've just made a coroutine in C++!
 
