@@ -13,7 +13,7 @@ This guide will explain different practices in no particular order
 
 You can make PRs to this repo, though your new documentation should have the following requirements:
 
-- [x] Properly describe the practice and it's use cases. Specify when to/not to use said practice
+- [x] Properly describe the practice and its use cases. Specify when to/not to use said practice
 - [x] The reader should be aware of the consequences/advantages of said method
 - [x] Show examples from C# identical/similar code if applicable
 
@@ -41,7 +41,7 @@ UnityEngine::GameObject* go = UnityEngine::GameObject::Find("someObject");
 
 This code is safe, compact and easy to read. Codegen has the added side-benefit of making mods easier to port from C# since the code can be very similar to identical in some ways.
 
-Codegen behind the scenes wraps around Il2CppObject* and gives easy access to it's fields and methods. Every codegen object is actually a `Il2cppObject*`
+Codegen behind the scenes wraps around Il2CppObject* and gives easy access to its fields and methods. Every codegen object is actually a `Il2cppObject*`
 
 ## Pointers
 
@@ -215,7 +215,7 @@ void Does::Stuff::dtor() {
 
 As you may already know, on Quest we do not have such things as post fix or pre fix like HarmonyPatches. So, how do we follow the same behaviour?
 
-We use `MAKE_HOOK_OFFSETLESS(hookName, returnType, instance, parameters...)` to define the hook and it's code and `INSTALL_HOOK_OFFSETLESS(getLogger(), hookName, il2cpp_utils::FindMethodUnsafe("NameSpaceOfClass or empty if GlobalNamespace", "Class", "Method", parameterCount));` to register the hook.
+We use `MAKE_HOOK_OFFSETLESS(hookName, returnType, instance, parameters...)` to define the hook and its code and `INSTALL_HOOK_OFFSETLESS(getLogger(), hookName, il2cpp_utils::FindMethodUnsafe("NameSpaceOfClass or empty if GlobalNamespace", "Class", "Method", parameterCount));` to register the hook.
 You should NOT uninstall hooks, and beware for methods too small to be hooked. Ocassionally, there are methods in the game you CANNOT hook since they are too small, however you can workaround it by hooking other methods that ARE big enough.
 
 Hook names are inconsequential, however I personally believe hook names should be as so: ```Class_Method```. If you hook the same method with different parameters, just suffix with a random number.
@@ -386,7 +386,7 @@ and you'd run `monoBehaviour->StartCoroutine(reinterpret_cast<System::Collection
 
 Congrats, you've just made a coroutine in C++!
 
-What exactly are `co_return` and `co_yield` in C++ though? Well `co_return` in C++ is the direct port of `yield break;` for C#. `co_yield`, as it's name suggests, is a direct port to `yield return` for C#. You cannot use `return` in coroutines (which is a C++ 20 reason I don't want to delve into here)
+What exactly are `co_return` and `co_yield` in C++ though? Well `co_return` in C++ is the direct port of `yield break;` for C#. `co_yield`, as its name suggests, is a direct port to `yield return` for C#. You cannot use `return` in coroutines (which is a C++ 20 reason I don't want to delve into here)
 
 _Do note that if your coroutine does NOT contain a `co_yield` or `co_return`, you WILL have LOTS of strange behaviour (believe me, I know it myself all too well). But you shouldn't use a coroutine if your method doesn't contain a `co_yield` or `co_return` to begin with, unless you're trying to run code in the Update method once (which would be weird)._
 
@@ -394,11 +394,11 @@ _Do note that if your coroutine does NOT contain a `co_yield` or `co_return`, yo
 
 ## SafePtr
 
-Il2Cpp is very fast, though don't fool yourself. One of it's major reasons it's fast on the Quest devices is due to the way it's GC works and how agressive it is. This is good for game developers since it allows them to not worry about memory management while using il2cpp, but it does bring an issue to the table for modders: how do _we_ as modders ensure the GC does not delete the memory we are using? We come to the problem by having stored pointers that lose their references and get GC'ed. Another cause for this problem is when we instantiate an object but it gets GC'ed before it even finishes instantiating such as it is with `UnityEngine::ScriptableObject::CreateInstance<>();` for example.
+Il2Cpp is very fast, though don't fool yourself. One of the major reasons its fast on the Quest devices is due to the way the GC works and how agressive it is. This is good for game developers since it allows them to not worry about memory management while using il2cpp, but it does bring an issue to the table for modders: how do _we_ as modders ensure the GC does not delete the memory we are using? We come to the problem by having stored pointers that lose their references and get GC'ed. Another cause for this problem is when we instantiate an object but it gets GC'ed before it even finishes instantiating such as it is with `UnityEngine::ScriptableObject::CreateInstance<>();` for example.
 
 We **have** to tell the GC there is a reference to it existing so it doesn't get freed. One way to do this is to declare the pointer, register and store it in `custom_types`. This might be tedious and annoying, especially when you only need to pass around the variable through functions or less places.
 
-SafePtr is smart pointer similar to `shared_ptr` and `unique_ptr` which can alleviate this problem. It does this by forcing a reference in il2cpp so the GC never frees it. Once SafePtr goes out of scope and it's destructor is called, this reference is freed and therefore gone, allowing the GC to free the pointer if there are no other references anymore.
+SafePtr is smart pointer similar to `shared_ptr` and `unique_ptr` which can alleviate this problem. It does this by forcing a reference in il2cpp so the GC never frees it. Once SafePtr goes out of scope and its destructor is called, this reference is freed and therefore gone, allowing the GC to free the pointer if there are no other references anymore.
 
 There are some caveats however that you should be aware of:
 
@@ -414,7 +414,7 @@ It should also be known that components and game objects shouldn't be used with 
 
 On Quest you'll notice that it's far less forgiving for mistakes. Your mod will crash even for the slightest error, and sometimes you might even spend hours scratching your head, wondering why your code isn't working when it works in the original mod.
 
-One of the best ways to understand the problem is by using tombstones. Tombstones are files created when the game crashes and are stored in `sdcard/Android/data/com.beatgames.beatsaber/files`. In conjuction with the tombstone, we can use a script that will try it's best to parse it and refer back to your source code, making it look more like a C# stacktrace.
+One of the best ways to understand the problem is by using tombstones. Tombstones are files created when the game crashes and are stored in `sdcard/Android/data/com.beatgames.beatsaber/files`. In conjuction with the tombstone, we can use a script that will try its best to parse it and refer back to your source code, making it look more like a C# stacktrace.
 Simply use the `ndk-stack.ps1` script as follows:
 
 `ndk-stack.ps1 /path/to/tombstone`
@@ -475,7 +475,7 @@ if (il2cpp_functions::class_is_assignable_from(classof(B*), objectA->klass)) {
 }
 ```
 
-However, it should be noted that if the GC yeets the memory in the pointer, it will usually throw a [SEGV_MAPERR and it cannot be at checked at runtime (yet)](nullptr-dereference-segv_mapperr-but-this-code-shouldnt-be-null-what-gives). Instead of checking to see if it's been yeeted, you should instead try to avoid it altogether by making a custom-type or SafePtr for it.
+However, it should be noted that if the GC yeets the memory in the pointer, it will usually throw a [SEGV_MAPERR and it cannot be at checked at runtime (yet)](nullptr-dereference-segv_mapperr-but-this-code-shouldnt-be-null-what-gives). Instead of checking to see if it has been yeeted, you should instead try to avoid it altogether by making a custom-type or SafePtr for it.
 
 ### SIGABRT (intentional crash)
 
