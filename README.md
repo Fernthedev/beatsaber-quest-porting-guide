@@ -41,7 +41,7 @@ UnityEngine::GameObject* go = UnityEngine::GameObject::Find("someObject");
 
 This code is safe, compact and easy to read. Codegen has the added side-benefit of making mods easier to port from C# since the code can be very similar to identical in some ways.
 
-Codegen behind the scenes wraps around Il2CppObject* and gives easy access to its fields and methods. Every codegen object is actually a `Il2cppObject*`
+Codegen behind the scenes wraps around Il2CppObject\* and gives easy access to its fields and methods. Every codegen object is actually a `Il2cppObject*`
 
 ## Pointers
 
