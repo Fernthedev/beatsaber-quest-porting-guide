@@ -83,7 +83,6 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
     DECLARE_INSTANCE_FIELD(float, floatVar);
 
     REGISTER_FUNCTION(
-      getLogger().debug("Registering OurClass!"); // May need to be removed
       REGISTER_SIMPLE_DTOR();
       REGISTER_METHOD(ctor);
       REGISTER_METHOD(dtor);
