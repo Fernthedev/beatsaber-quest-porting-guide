@@ -58,7 +58,7 @@ while on C++ we use the following (assuming you are using codegen)
 ```cpp
 #include "UnityEngine/GameObject.hpp"
 
-UnityEngine::GameObject* go = UnityEngine::GameObject::Find(il2cpp_utils::createcsstr("name"));
+UnityEngine::GameObject* go = UnityEngine::GameObject::Find(il2cpp_utils::newcsstr("name"));
 ```
 
 ## Custom types and classes
@@ -219,6 +219,47 @@ As you may already know, on Quest we do not have such things as post fix or pre 
 We use `MAKE_HOOK_OFFSETLESS(hookName, returnType, instance, parameters...)` to define the hook and it's code and `INSTALL_HOOK_OFFSETLESS(getLogger(), hookName, il2cpp_utils::FindMethodUnsafe("NameSpaceOfClass or empty if GlobalNamespace", "Class", "Method", parameterCount));` to register the hook.
 You should NOT uninstall hooks, and beware for methods too small to be hooked. Ocassionally, there are methods in the game you CANNOT hook since they are too small, however you can workaround it by hooking other methods that ARE big enough.
 
+Hook names are inconsequential, however I personally believe hook names should be as so: ```Class_Method```. If you hook the same method with different parameters, just suffix with a random number.
+
+My recommended hook structure for mods is as follows (though always feel free to follow your own):
+- include folder
+  - ModName.hpp
+    ```hpp
+    #pragma once
+
+    namespace ModName {
+      namespace Hooks {
+        void Class();
+      }
+
+      void InstallHooks();
+    }
+    ```
+- src folder
+  - hooks folder
+    - Class.cpp
+      ```cpp
+      #include ModName.hpp
+      
+      MAKE_HOOK_OFFSETLESS(Class_Method, returnType) {
+
+      } 
+
+      void ModName::Hooks::Class() {
+        INSTALL_HOOK_OFFSETLESS(getLogger(), Class_Method, il2cpp_utils::FindMethodUnsafe("NameSpaceOfClass or empty if GlobalNamespace", "Class", "Method", parameterCount))
+      }
+      ```
+  - ModName.cpp
+    ```cpp
+    #include "ModName.hpp"
+
+    void ModName::InstallHooks() {
+      ModName::Hooks::Class();
+    }
+    ```
+
+P.S I learned this from StackDoubleFlow, thanks buddy ;)
+
 ## Pre fix
 
 TODO:
@@ -352,6 +393,24 @@ _Do note that if your coroutine does NOT contain a `co_yield` or `co_return`, yo
 
 **Do note that the general rule of coroutines still apply here. You should avoid heavy work such as I/O or web requests on the main thread and instead use il2cpp threads (if you need to run il2cpp/Unity code in the thread) or use C++ threads for better performance. Coroutines are still on the main thread.**
 
+## SafePtr
+
+Il2Cpp is very fast, though don't fool yourself. One of it's major reasons it's fast on the Quest devices is due to the way it's GC works and how agressive it is. This is good for game developers since it allows them to not worry about memory management while using il2cpp, but it does bring an issue to the table for modders: how do _we_ as modders ensure the GC does not delete the memory we are using? We come to the problem by having stored pointers that lose their references and get GC'ed. Another cause for this problem is when we instantiate an object but it gets GC'ed before it even finishes instantiating such as it is with `UnityEngine::ScriptableObject::CreateInstance<>();` for example.
+
+We **have** to tell the GC there is a reference to it existing so it doesn't get freed. One way to do this is to declare the pointer, register and store it in `custom_types`. This might be tedious and annoying, especially when you only need to pass around the variable through functions or less places.
+
+SafePtr is smart pointer similar to `shared_ptr` and `unique_ptr` which can alleviate this problem. It does this by forcing a reference in il2cpp so the GC never frees it. Once SafePtr goes out of scope and it's destructor is called, this reference is freed and therefore gone, allowing the GC to free the pointer if there are no other references anymore.
+
+There are some caveats however that you should be aware of:
+
+- This does NOT stop the pointer from being assigned nullptr, that is fundamentally different from it being freed. A pointer points to a region of memory in C++, which means that if it is freed, it still points to that memory. It is just now invalid, and there is currently no way to check if a pointer is still valid. When a pointer is assigned nullptr, that memory is not freed. It just means that the pointer now points to nothing in memory.
+- Do not use SafePtr everywhere, especially in static variables with infinite lifetime if you're not careful. This is a perfectly good use case where you may want to ensure that the memory will never be freed, however this is technically a memory leak and if you're not careful you'll cause more problems than you'll solve.
+
+Be sure to use a SafePtr carefully, it is not a holy grace or a silver bullet. It is a specific tool for solving specific problems, be wise with it.
+
+It should also be known that components and game objects shouldn't be used with SafePtr as those are fundamentally supposed to have their lifetimes tied to the game itself and destroyed when needed. Nothing is stopping you from using it, it's just bad practice fundamentally.
+
+
 ## Diagnosing crashes
 
 On Quest you'll notice that it's far less forgiving for mistakes. Your mod will crash even for the slightest error, and sometimes you might even spend hours scratching your head, wondering why your code isn't working when it works in the original mod.
@@ -395,9 +454,9 @@ One problem we have in Quest modding is that while il2cpp may be compiled to C++
 
 One of the answers lies again in custom-types. Even if you don't plan on extending a C# class, you can use custom-types to store pointers to C# classes. The GC will recognize the fields and won't delete them from memory as long as the instance is still alive.
 
-#### SafePtr
+#### SafePtr to avoid GC
 
-TODO: Wait for sc2ad to fix SafePtr
+[SafePtr](#SafePtr)
 
 ### SEGV_MAPERR (similar to ClassCastException or NullPtr)
 
