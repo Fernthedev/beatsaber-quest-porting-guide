@@ -396,19 +396,80 @@ _Do note that if your coroutine does NOT contain a `co_yield` or `co_return`, yo
 
 Il2Cpp is very fast, though don't fool yourself. One of the major reasons its fast on the Quest devices is due to the way the GC works and how agressive it is. This is good for game developers since it allows them to not worry about memory management while using il2cpp, but it does bring an issue to the table for modders: how do _we_ as modders ensure the GC does not delete the memory we are using? We come to the problem by having stored pointers that lose their references and get GC'ed. Another cause for this problem is when we instantiate an object but it gets GC'ed before it even finishes instantiating such as it is with `UnityEngine::ScriptableObject::CreateInstance<>();` for example.
 
-We **have** to tell the GC there is a reference to it existing so it doesn't get freed. One way to do this is to declare the pointer, register and store it in `custom_types`. This might be tedious and annoying, especially when you only need to pass around the variable through functions or less places.
+We **have** to tell the GC there is a reference to it existing so it doesn't get freed. One way to do this is to declare the pointer, register and store it in `custom_types`. `custom_types` allocations are done by the GC, allowing it to recognize the references to other pointers and such. This might be tedious and annoying, especially when you only need to pass around the variable through functions or less places.
 
-SafePtr is smart pointer similar to `shared_ptr` and `unique_ptr` which can alleviate this problem. It does this by forcing a reference in il2cpp so the GC never frees it. Once SafePtr goes out of scope and its destructor is called, this reference is freed and therefore gone, allowing the GC to free the pointer if there are no other references anymore.
+SafePtr is smart pointer similar to `shared_ptr` and `unique_ptr` which can alleviate this problem. It does this by forcing a reference in il2cpp so the GC never frees it. Once SafePtr goes out of scope and its destructor is called, this reference is freed and therefore gone, allowing the GC to free the pointer if there are no other references anymore. A SafePtr is in reality just a fancier `shared_ptr<>` as it does reference incrementing.
 
 There are some caveats however that you should be aware of:
 
 - This does NOT stop the pointer from being assigned nullptr, that is fundamentally different from it being freed. A pointer points to a region of memory in C++, which means that if it is freed, it still points to that memory. It is just now invalid, and there is currently no way to check if a pointer is still valid. When a pointer is assigned nullptr, that memory is not freed. It just means that the pointer now points to nothing in memory.
 - Do not use SafePtr everywhere, especially in static variables with infinite lifetime if you're not careful. This is a perfectly good use case where you may want to ensure that the memory will never be freed, however this is technically a memory leak and if you're not careful you'll cause more problems than you'll solve.
+- A SafePtr does not stop an explicit GC_free destruction as that forces memory to be freed unlike a GC checking if it has any references.
 
 Be sure to use a SafePtr carefully, it is not a holy grace or a silver bullet. It is a specific tool for solving specific problems, be wise with it.
 
 It should also be known that components and game objects shouldn't be used with SafePtr as those are fundamentally supposed to have their lifetimes tied to the game itself and destroyed when needed. Nothing is stopping you from using it, it's just bad practice fundamentally.
 
+> From sc2ad's own words: "The 'extraneous' lifetime IS important to note, however, because SafePtr simply adds a reference to the instance, it does NOT stop explicit GC_Free calls to the instance from destroying it, nor does it ensure the instance will be garbage collected immediately after the SafePtr holding it is destroyed. It is possible that the game holds more references to the instance also within the GC-heap, in which case a SafePtr may not be necessary, and will slow down your code. 
+
+> Also note that having three SafePtr instances for three different instances (for example) is worse as far as memory and performance goes than a custom type that simply has all three instances as fields. This is because each unique SafePtr performs an allocation and deallocation, whereas a single custom type will only perform this once."
+
+For more specifics of SafePtr and it's nature, read up on [this wiki post by sc2ad, the author of SafePtr](https://github.com/sc2ad/beatsaber-hook/wiki/SafePtr)
+
+### How to use SafePtr?
+#### Methods available to use
+- `SafePtr<T>(T* ptr);` Constructs a SafePtr keeping a reference to `T*` to keep it alive
+- `SafePtr<T>();` Constructs a SafePtr with no value, this allows for static or lazy initialization.
+- `SafePtr<T>.emplace(T* ptr)` or `safePtrInstance = ptr` assign an existing SafePtr instance a pointer to keep alive.
+- `if (safePtrInstance)` or `bool alive = safePtrInstance` return true if the SafePtr has an assigned pointer, false if not as is the case with the default constructor.
+- `T* ptr = (T*) safePtrInstance` Returns the raw pointer held by SafePtr. Be wary as this means SafePtr is no longer in charge of keeping the pointer alive. This means if you continue using the `SafePtr` after it has been deconstructed, it is possible for it be to be freed. This is undefined behaviour.
+- `SafePtr<T>.cast<ChildOrParentOfT>()` will cast the SafePtr to a `SafePtr<ChildOrParentOfT>`. This will throw an exception if it's not a valid cast. Preferrably use this when confident it is of the type or if else it's unexpected/bug behaviour.
+- `SafePtr<T>.try_cast<ChildOrParentOfT>()` similar to cast however this return an optional with the casted value or `std::nullopt` if it's not a valid cast. Preferrably use this when you are aware of the possibility and are ready to handle when it's not castable.
+
+#### Scenarios
+
+Well one very common way to use SafePtr is as follows:
+```cpp
+// This is one common method that benefits from SafePtr
+// I've encountered issues with this code since the GC
+// doesn't find a reference to it WHILE you're instantiating it,
+// causing it to be freed before you can even run the next line!
+// This is one way to solve the problem
+SafePtr<ScriptableObject> so = SafePtr(ScriptableObject::CreateInstance<ScriptableObject*>()); 
+```
+Another common use case might be as follows:
+```cpp
+// This initialization is designed to work like this.
+// This is not assigned nullptr either, it's referred to as "empty"
+static SafePtr<SomeClass> someClassPtr;
+
+void hook(SomeOtherClass_Method, SomeOtherClass* self) {
+  // Since we don't own this object, we don't explicitly control it's lifetime
+  someClassPtr = SafePtr(self.someOtherClassPtr); // this can be done with .emplace instead of =, they're the same
+}
+
+void repeatedHookThatRunsEarlier(BClass_Method, BClass* self) {
+  if (someClassPtr) {
+    // this means that someClassPtr has been assisgned a pointer and is keeping it alive.
+    std::optional<SafePtr<SomeClassChild>> someClassChildPtr = someClassPtr.try_cast<SomeClassChild>();
+
+    if (someClassChildPtr) 
+    {
+      // It has been casted, yay!
+    } 
+    else 
+    {
+      // it's not a valid cast, likely due to it not actually being the type we asked to cast
+    }
+
+    // All right, we're done with it. Now time to clear it
+    // Not sure if sc2ad approves of this, not even sure if it works
+    someClassChildPtr.~SafePtr();
+  } else {
+    // it has not been assigned
+  }
+}
+```
 
 ## Diagnosing crashes
 
