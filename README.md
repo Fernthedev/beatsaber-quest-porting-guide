@@ -398,7 +398,7 @@ Il2Cpp is very fast, though don't fool yourself. One of the major reasons its fa
 
 We **have** to tell the GC there is a reference to it existing so it doesn't get freed. One way to do this is to declare the pointer, register and store it in `custom_types`. `custom_types` allocations are done by the GC, allowing it to recognize the references to other pointers and such. This might be tedious and annoying, especially when you only need to pass around the variable through functions or less places.
 
-SafePtr is smart pointer similar to `shared_ptr` and `unique_ptr` which can alleviate this problem. It does this by forcing a reference in il2cpp so the GC never frees it. Once SafePtr goes out of scope and its destructor is called, this reference is freed and therefore gone, allowing the GC to free the pointer if there are no other references anymore. A SafePtr is in reality just a fancier `shared_ptr<>` as it does reference incrementing.
+SafePtr is smart pointer similar to `shared_ptr` and `unique_ptr` which can alleviate this problem. It does this by forcing a reference in il2cpp so the GC never frees it. Once SafePtr goes out of scope and its destructor is called, this reference is freed and therefore gone, allowing the GC to free the pointer if there are no other references anymore. A SafePtr is fundamentally just a fancier `shared_ptr<>` as it does reference incrementing.
 
 There are some caveats however that you should be aware of:
 
@@ -418,7 +418,7 @@ For more specifics of SafePtr and it's nature, read up on [this wiki post by sc2
 
 ### How to use SafePtr?
 #### Methods available to use
-- `SafePtr<T>(T* ptr);` Constructs a SafePtr keeping a reference to `T*` to keep it alive
+- `SafePtr<T>(T* ptr);` Constructs a SafePtr keeping a reference to `T*` to stop it from being freed by implicit GC.
 - `SafePtr<T>();` Constructs a SafePtr with no value, this allows for static or lazy initialization.
 - `SafePtr<T>.emplace(T* ptr)` or `safePtrInstance = ptr` assign an existing SafePtr instance a pointer to keep alive.
 - `if (safePtrInstance)` or `bool alive = safePtrInstance` return true if the SafePtr has an assigned pointer, false if not as is the case with the default constructor.
@@ -435,7 +435,7 @@ Well one very common way to use SafePtr is as follows:
 // doesn't find a reference to it WHILE you're instantiating it,
 // causing it to be freed before you can even run the next line!
 // This is one way to solve the problem
-SafePtr<ScriptableObject> so = SafePtr(ScriptableObject::CreateInstance<ScriptableObject*>()); 
+SafePtr<ScriptableObject> so(ScriptableObject::CreateInstance<ScriptableObject*>()); 
 ```
 Another common use case might be as follows:
 ```cpp
@@ -461,10 +461,6 @@ void repeatedHookThatRunsEarlier(BClass_Method, BClass* self) {
     {
       // it's not a valid cast, likely due to it not actually being the type we asked to cast
     }
-
-    // All right, we're done with it. Now time to clear it
-    // Not sure if sc2ad approves of this, not even sure if it works
-    someClassChildPtr.~SafePtr();
   } else {
     // it has not been assigned
   }
