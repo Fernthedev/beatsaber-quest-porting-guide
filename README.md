@@ -9,6 +9,24 @@ This guide aims to do the following things:
 This assumes that you have a basic understanding of C++ and a bit of C#. You will also be using codegen in this tutorial.
 This guide will explain different practices in no particular order
 
+## NOTICE: BS-HOOKS 2.0 AND CUSTOM-TYPES 0.12.0 ARE NOW OUT
+For both Beat Saber Quest modding and Gorilla Tag modding (tell Red to force everyone on GT to these new libraries), there have been some major changes to modding in Quest.
+
+The most notable changes are:
+- [Codegen hooks](https://github.com/sc2ad/beatsaber-hook/releases/tag/v2.0.0)
+  - Hooks are now type checked at runtime!
+  - Include `beatsaber-hooks/shared/utils/hooking.hpp`
+  - Use `MAKE_HOOK_MATCH` for codegen hooks as so: `MAKE_HOOK_MATCH(HookName, &Namespace::Clazz::Foo, ret, self if needed, args...)`
+  - If codegen doesn't work, use `MAKE_HOOK_FIND_CLASS(Hook, classof(MyClass*), "MethodName", ret, self, args...)`
+  - If you need to hook a constructor or use the legacy FindMethod, use `MAKE_HOOK_FIND_CLASS(Hook, "Namespace", "Class", "MethodName", ret, self, args...)`.
+  - Use `INSTALL_HOOK` instead of `INSTALL_HOOK_OFFSETLESS`
+- [Custom-types](https://github.com/sc2ad/Il2CppQuestTypePatching/releases/tag/v0.9.0)
+  - No more `custom_types::Register::RegisterType<>();` or `custom_types::Register::RegisterTypes<>();`
+    - Use `custom_types::Register::AutoRegister();`
+  - No more `REGISTER_` macros
+  - `DEFINE_TYPE(CLASS)` is now `DEFINE_TYPE(NAMESPACE, CLASS)`
+  - You must now use either `DECLARE_STATIC_METHOD` or `DECLARE_INSTANCE_METHOD`
+
 ## PRs are welcome!
 
 You can make PRs to this repo, though your new documentation should have the following requirements:
@@ -76,19 +94,11 @@ In the PC mods, you will know that it's quite easy to create your own MonoBehavi
 
 DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
   public:
-    DECLARE_METHOD(void, Update);
+    DECLARE_INSTANCE_METHOD(void, Update);
     DECLARE_CTOR(ctor);
     DECLARE_SIMPLE_DTOR();
 
     DECLARE_INSTANCE_FIELD(float, floatVar);
-
-    REGISTER_FUNCTION(
-      REGISTER_SIMPLE_DTOR();
-      REGISTER_METHOD(ctor);
-      REGISTER_METHOD(dtor);
-      REGISTER_METHOD(Update);
-      REGISTER_FIELD(floatVar);
-    )
 )
 ```
 
@@ -97,7 +107,7 @@ DECLARE_CLASS_CODEGEN(OurNamespace, OurClass, UnityEngine::MonoBehaviour,
 #include "OurClass.hpp"
 
 // Necessary
-DEFINE_TYPE(OurNamespace::OurClass);
+DEFINE_TYPE(OurNamespace, OurClass);
 
 void OurNamespace::OurClass::ctor() {
   floatVar = 1.0f
@@ -131,16 +141,12 @@ DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
 
   DECLARE_CTOR(ctor);
   DECLARE_SIMPLE_DTOR();
-  REGISTER_FUNCTION(
-    REGISTER_METHOD(ctor);
-    REGISTER_SIMPLE_DTOR();
-  )
 )
 ```
 
 ```cpp
 // type.cpp
-DEFINE_TYPE(Does::Stuff);
+DEFINE_TYPE(Does, Stuff);
 
 void Does::Stuff::ctor() {
   // you should only use this is if your constructor is non-trivial or contains non-trivial constructible fields such as vectors. very tiny performance impact
@@ -152,7 +158,7 @@ void Does::Stuff::ctor() {
 
 ```cpp
 load() {
-    custom_types::Register::RegisterTypes<OurNamespace::OurClass*>();
+    custom_types::Register::AutoRegister();
 }
 ```
 
@@ -172,7 +178,7 @@ Note that because we are defining a new method for construction (the C# ctor), w
 
 What does `INVOKE_CTOR` and `DECLARE_SIMPLE_DTOR` do behind the scenes? Well, first `INVOKE_CTOR` calls your C++ constructor at the cost of a _**very tiny**_ performance impact to initialize your fields. You do not need this call if you do not have [non-trivial constructible fields](https://en.cppreference.com/w/cpp/language/default_constructor) such as `std::vector`. `DECLARE_SIMPLE_DTOR` on the other hand causes the C++ destructor to be called by the C# destructor, which _in theory_ should have no memory leaks 🤞. Of course, if you have manually allocated data, you'll need your own destructor.
 
-> Tip: If you plan on making a C# constructor just to invoke `INVOKE_CTOR`, you can use `DECLARE_DEFAULT_CTOR` and `REGISTER_SIMPLE_CTOR()` the same way you would use `DECLARE_DEFAULT_DTOR` and `REGISTER_DEFAULT_DTOR()` respectively.
+> Tip: If you plan on making a C# constructor just to invoke `INVOKE_CTOR`, you can use `DECLARE_DEFAULT_CTOR` the same way you would use `DECLARE_DEFAULT_DTOR` respectively.
 
 You should **not** call either C# or C++ destructor outside of the destructor itself (e.g, just calling it anywhere in your code)
 The GC will call it for you when it is no longer needed (do note that this does not apply to manually managed il2cpp created types)
@@ -189,16 +195,12 @@ DECLARE_CLASS_CODEGEN(Does, Stuff, Il2CppObject,
   std::vector<int> aCppVec;
   DECLARE_CTOR(ctor);
   DECLARE_DESTRUCTOR(dtor);
-  REGISTER_FUNCTION(
-    REGISTER_METHOD(ctor);
-    REGISTER_METHOD(dtor);
-  )
 )
 ```
 
 ```cpp
 // type.cpp
-DEFINE_TYPE(Does::Stuff);
+DEFINE_TYPE(Does, Stuff);
 
 void Does::Stuff::ctor() {
   // create vector
@@ -215,7 +217,7 @@ void Does::Stuff::dtor() {
 
 As you may already know, on Quest we do not have such things as post fix or pre fix like HarmonyPatches. So, how do we follow the same behaviour?
 
-We use `MAKE_HOOK_OFFSETLESS(hookName, returnType, instance, parameters...)` to define the hook and its code and `INSTALL_HOOK_OFFSETLESS(getLogger(), hookName, il2cpp_utils::FindMethodUnsafe("NameSpaceOfClass or empty if GlobalNamespace", "Class", "Method", parameterCount));` to register the hook.
+We use `MAKE_HOOK_MATCH(hookName, &Namesspace::Class::Method, returnType, instance, parameters...)` to define the hook and its code and `INSTALL_HOOK(getLogger(), hookName);` to register the hook.
 You should NOT uninstall hooks, and beware for methods too small to be hooked. Ocassionally, there are methods in the game you CANNOT hook since they are too small, however you can workaround it by hooking other methods that ARE big enough.
 
 Hook names are inconsequential, however I personally believe hook names should be as so: ```Class_Method```. If you hook the same method with different parameters, just suffix with a random number.
@@ -240,12 +242,12 @@ My recommended hook structure for mods is as follows (though always feel free to
       ```cpp
       #include ModName.hpp
       
-      MAKE_HOOK_OFFSETLESS(Class_Method, returnType) {
+      MAKE_HOOK_MATCH(Class_Method, &Namespace::Class::Method, returnType, selfIfInstance, args...) {
 
       } 
 
       void ModName::Hooks::Class() {
-        INSTALL_HOOK_OFFSETLESS(getLogger(), Class_Method, il2cpp_utils::FindMethodUnsafe("NameSpaceOfClass or empty if GlobalNamespace", "Class", "Method", parameterCount))
+        INSTALL_HOOK(getLogger(), Class_Method);
       }
       ```
   - ModName.cpp
@@ -284,7 +286,7 @@ First, we will look at `GlobalNamespace/StandardLevelScenesTransitionSetupDataSO
 
 #include "GlobalNamespace/StandardLevelScenesTransitionSetupDataSO.hpp"
 
-MAKE_HOOK_OFFSETLESS(StandardLevelScenesTransitionSetupDataSO_Init, void, GlobalNamespace::StandardLevelScenesTransitionSetupDataSO* self,
+MAKE_HOOK_MATCH(StandardLevelScenesTransitionSetupDataSO_Init, &GlobalNamespace::StandardLevelScenesTransitionSetupDataSO::Init, void, GlobalNamespace::StandardLevelScenesTransitionSetupDataSO* self,
                     Il2CppString* gameMode, GlobalNamespace::IDifficultyBeatmap* difficultyBeatmap, GlobalNamespace::IPreviewBeatmapLevel* previewBeatmapLevel, GlobalNamespace::OverrideEnvironmentSettings* overrideEnvironmentSettings, GlobalNamespace::ColorScheme* overrideColorScheme, GlobalNamespace::GameplayModifiers* gameplayModifiers, GlobalNamespace::PlayerSpecificSettings* playerSpecificSettings, GlobalNamespace::PracticeSettings* practiceSettings, ::Il2CppString* backButtonText, bool useTestNoteCutSoundEffects
                      ) {
   // Anything here is pre fix since it is running before the original method
@@ -298,7 +300,7 @@ MAKE_HOOK_OFFSETLESS(StandardLevelScenesTransitionSetupDataSO_Init, void, Global
 
 void InstallHook() {
   // This will register our hook
-  INSTALL_HOOK_OFFSETLESS(getLogger(), StandardLevelScenesTransitionSetupDataSO_Init, il2cpp_utils::FindMethodUnsafe("", "StandardLevelScenesTransitionSetupDataSO", "Init", 10));
+  INSTALL_HOOK(getLogger(), StandardLevelScenesTransitionSetupDataSO_Init);
 }
 ```
 
@@ -315,7 +317,7 @@ What if the method you're hooking does NOT return void? It's simple to post fix 
 
 #include "GlobalNamespace/TrackLaneRingsRotationEffect.hpp"
 
-MAKE_HOOK_OFFSETLESS(TrackLaneRingsRotationEffect_GetFirstRingRotationAngle, float, GlobalNamespace::TrackLaneRingsRotationEffect* self) {
+MAKE_HOOK_OFFSETLESS(TrackLaneRingsRotationEffect_GetFirstRingRotationAngle, &GlobalNamespace::TrackLaneRingsRotationEffect::GetFirstRingRotationAngle, float, GlobalNamespace::TrackLaneRingsRotationEffect* self) {
   // Anything here is pre fix since it is running before the original method
 
   // We call the original method by putting the name of our hook, self (which is the instance) as the first parameter and the rest of the parameters.
@@ -339,7 +341,7 @@ MAKE_HOOK_OFFSETLESS(TrackLaneRingsRotationEffect_GetFirstRingRotationAngle, flo
 
 void InstallHook() {
   // This will register our hook
-  INSTALL_HOOK_OFFSETLESS(getLogger(), TrackLaneRingsRotationEffect_GetFirstRingRotationAngle, il2cpp_utils::FindMethodUnsafe("", "TrackLaneRingsRotationEffect", "GetFirstRingRotationAngle", 0));
+  INSTALL_HOOK(getLogger(), TrackLaneRingsRotationEffect_GetFirstRingRotationAngle);
 }
 ```
 
