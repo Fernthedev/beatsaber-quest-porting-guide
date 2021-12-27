@@ -9,6 +9,9 @@ This guide aims to do the following things:
 This assumes that you have a basic understanding of C++ and a bit of C#. You will also be using codegen in this tutorial.
 This guide will explain different practices in no particular order
 
+## QPM-Rust migration
+Take a look at [this guide](qpm-rust.md)
+
 ## NOTICE: BS-HOOKS 2.0 AND CUSTOM-TYPES 0.12.0 ARE NOW OUT
 For both Beat Saber Quest modding and Gorilla Tag modding (tell Red to force everyone on GT to these new libraries), there have been some major changes to modding in Quest.
 
