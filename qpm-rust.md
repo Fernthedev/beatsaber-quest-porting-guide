@@ -16,7 +16,7 @@ QPM-Rust was built with the principle of improving everything about QPM v1 that 
 # How to migrate
 To migrate, you'll have to download [qpm-rust](https://github.com/RedBrumbler/QuestPackageManager-Rust) in the GH Actions page.
 
-Download [CMake](https://cmake.org/download/) and [Ninja](https://github.com/ninja-build/ninja/releases) and add them both to your enviroment PATH.
+Download [CMake,](https://cmake.org/download/) [Ninja,](https://github.com/ninja-build/ninja/releases) and [Git,](https://git-scm.com/downloads) and add them all to your enviroment PATH.
 
 After that is done, copy the `CMakeLists.txt` from an existing mod repository. For the purpose of this guide, I'll be using the [Chroma CMake file](https://github.com/bsq-ports/Chroma/blob/main/CMakeLists.txt) however you can also use the [QMod template from Laurie](https://github.com/Lauriethefish/quest-mod-template/blob/main/template/CMakeLists.txt)
 
