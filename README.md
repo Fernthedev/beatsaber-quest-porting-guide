@@ -38,6 +38,25 @@ You can make PRs to this repo, though your new documentation should have the fol
 - [x] The reader should be aware of the consequences/advantages of said method
 - [x] Show examples from C# identical/similar code if applicable
 
+## Using vcpkg with CMake and QPM-Rust
+You can use vcpkg with Android, though there are a few caveats. 
+- Not all packages support Android NDK
+- [VS Build Tools 2022](https://aka.ms/vs/17/release/vs_BuildTools.exe) with MSVC/Windows 10 SDK is required for some packages such as protobuf
+- Many packages support Android NDK through the community unofficially
+
+Add these lines before your `project(${COMPILE_ID})`
+```cmake
+set(VCPKG_TARGET_TRIPLET arm64-android)
+set(VCPKG_CHAINLOAD_TOOLCHAIN_FILE ${CMAKE_ANDROID_NDK}/build/cmake/android.toolchain.cmake)
+string(REPLACE "\\" "/" VCPKG_ROOT_WINDOWS_FIX $ENV{VCPKG_ROOT})
+set(CMAKE_TOOLCHAIN_FILE ${VCPKG_ROOT_WINDOWS_FIX}/scripts/buildsystems/vcpkg.cmake)
+```
+Then add these lines after `add_library`
+```cmake
+find_package(protobuf CONFIG REQUIRED)
+target_link_libraries(${COMPILE_ID} PRIVATE protobuf::libprotoc protobuf::libprotobuf protobuf::libprotobuf-lite)
+```
+
 ## Objects and Codegen
 
 To understand why we use codegen, we have to understand how il2cpp works behind the scenes. BeatSaber uses the Unity engine which has 2 different ways of compiling: Mono and il2cpp. The PC version is compiled in Mono which allows mods to be created in C#, while also having a garbage collector and JIT optimizations. However, the Quest version uses il2cpp. Why you may ask?
