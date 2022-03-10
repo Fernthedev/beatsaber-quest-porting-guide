@@ -57,6 +57,20 @@ find_package(protobuf CONFIG REQUIRED)
 target_link_libraries(${COMPILE_ID} PRIVATE protobuf::libprotoc protobuf::libprotobuf protobuf::libprotobuf-lite)
 ```
 
+## Configuring intellisense in VSCode
+
+VSCode is a popular code editor and development environment, but its intellisense can be less than ideal, especially in quest modding projects. The best way to remove all the error squiggles is to provide the compile_commands file to the intellisense. This of course assumes that you have the basic C++ extensions installed.
+
+First, add this line to your CMakeLists.txt to create a file named `compile_commands.json` inside your build folder the next time the mod is built:
+```cmake
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+```
+Next, set the compile commands field in your intellisense configuration, either through the extension UI or directly in the json file. For the extension UI, you will need to add the path to your `compile_commands.json` file to the `Compile commands` setting in the advanced settings. You can also add this line directly to the configuration in `c_cpp_properties.json` (modifying the path if necessary):
+```json
+"compileCommands": "${workspaceFolder}/build/compile_commands.json"
+```
+It might not be perfectly fixed immediately, but after a build to generate the file and potentially a few VSCode restarts, your project should have working type and include intellisense. Notably, due to using the `compile_commands` file, newly created files might not have correct intellisense until they are included in at least one build.
+
 ## Objects and Codegen
 
 To understand why we use codegen, we have to understand how il2cpp works behind the scenes. BeatSaber uses the Unity engine which has 2 different ways of compiling: Mono and il2cpp. The PC version is compiled in Mono which allows mods to be created in C#, while also having a garbage collector and JIT optimizations. However, the Quest version uses il2cpp. Why you may ask?
